@@ -1,6 +1,6 @@
 # PolyJuiceVoice — App Store Connect Metadata
 
-Copy-paste ready for the 1.0.0 submission. Replace `YOUR_GITHUB_USERNAME` with your actual GitHub handle before submitting.
+Draft submission copy. Recheck the target release, supported devices, timings and store configuration before submission; this document does not confirm App Store availability.
 
 ---
 
@@ -19,7 +19,7 @@ On-device AI voice synthesis
 ## Promotional Text (max 170 chars — updatable without re-submission)
 
 ```
-Clone any voice, design new ones from a description, or speak with built-in styles — 100% on-device. Your recordings never leave your Mac or iPhone.
+Clone any voice, design new ones from a description, or speak with built-in styles — 100% on-device. Optional iCloud sync shares saved voices across your devices.
 ```
 
 ---
@@ -27,10 +27,10 @@ Clone any voice, design new ones from a description, or speak with built-in styl
 ## Description (max 4000 chars)
 
 ```
-PolyJuiceVoice is on-device text-to-speech with three powerful capabilities -- powered by Apple's MLX framework so every word is synthesized locally on your Mac or iPhone. Your voice recordings and text never leave the device.
+PolyJuiceVoice is on-device text-to-speech with three powerful capabilities -- powered by Apple's MLX framework so every word is synthesized locally on your Mac or iPhone. Saved voices stay local by default; optional iCloud sync transfers them through your private iCloud storage.
 
 --- SPEAK ---
-Pick a built-in voice and read any text aloud, with optional style guidance like "calm and warm" or "energetic and confident." Long passages stream as they're generated, so you hear the first sentence in seconds.
+Pick a built-in voice and read any text aloud, with optional style guidance like "calm and warm" or "energetic and confident." Long passages stream as they're generated, with latency depending on your device and selected model.
 
 --- DESIGN ---
 Describe the voice you want -- "a wise narrator with a slight British lilt" -- and PolyJuiceVoice generates a brand-new speaker that matches. Save it to your library and reuse it for any future text.
@@ -41,9 +41,9 @@ Record a few seconds of any voice (your own, or with the speaker's consent), the
 NOTE: Use voice cloning only with the explicit consent of the person whose voice you record.
 
 --- PRIVACY-FIRST ---
-* 100% on-device synthesis. No cloud APIs, no audio uploads.
+* On-device synthesis. Optional iCloud sync includes saved reference audio and voice metadata.
 * No accounts, no analytics, no tracking.
-* AI model weights (~4 GB) download once on first launch and stay local forever.
+* Download compatible model snapshots in Model Manager; size varies by family and precision. Installed models are cached locally until deleted.
 
 --- BUILT FOR APPLE SILICON ---
 Metal-accelerated inference via Apple's MLX framework for fast, energy-efficient synthesis. Designed for macOS 26 and iOS 26.
@@ -71,24 +71,24 @@ tts,voice clone,ai voice,speech,narration,audiobook,on-device,offline,private,ml
 | Field | Value |
 |---|---|
 | **Support URL** | `https://github.com/Team-AER/PolyJuiceVoice/issues` |
-| **Marketing URL** | `https://github.com/Team-AER/PolyJuiceVoice` |
+| **Marketing source** | `https://github.com/Team-AER/aer-landing/tree/main/polyjuicevoice` (use the confirmed hosted page for submission) |
 | **Privacy Policy URL** | `https://github.com/Team-AER/PolyJuiceVoice/blob/main/docs/PRIVACY_POLICY.md` |
 
 > The privacy policy file lives at `docs/PRIVACY_POLICY.md` in this repo. Push to GitHub and the raw URL above will work.
 
 ---
 
-## What's New in This Version (v1.0.0)
+## Example release notes (adapt for the submitted version)
 
 ```
-The first release of PolyJuiceVoice.
+PolyJuiceVoice voice studio:
 
 • Speak with built-in voices (Vivian, Ryan, and more) in 7 languages
 • Design new voices from a free-text description
 • Clone a voice from a short reference recording
-• Save unlimited voices to your personal library
+• Save cloned and designed voices to your personal library
 • Export synthesized audio as WAV
-• 100% on-device — your audio never leaves your hardware
+• On-device synthesis, with optional private iCloud voice-library sync
 • Optimized for Apple Silicon via Apple's MLX framework
 • Built for macOS 26 and iOS 26
 ```
@@ -97,19 +97,22 @@ The first release of PolyJuiceVoice.
 
 ## Notes for Apple Reviewer
 
-> Paste this verbatim into the **Notes** field under App Review Information in App Store Connect.
+> Review and adapt this draft for the exact submitted build.
 
 ```
-On first launch, PolyJuiceVoice downloads approximately 4 GB of AI model
-weights (Qwen3-TTS) from huggingface.co. This is a one-time download required
-for on-device AI inference — no processing is done in the cloud. The app
-displays a download progress screen with an ETA before the main UI appears.
+PolyJuiceVoice downloads selected Qwen3-TTS model snapshots from
+huggingface.co. Inference runs locally. Use Model Manager to download a
+compatible snapshot for the capability being reviewed; the app displays
+download progress.
 
-A network connection is required for the initial model download only. After
-that, the app runs fully offline.
+A network connection is required for model downloads. Synthesis can run
+locally after installation. Optional iCloud sync and sharing exported audio
+can use the network.
 
 The Voice Cloning feature requires microphone access to record a reference
-audio sample. All audio is processed on-device and never transmitted.
+audio sample, or accepts an imported audio file. Enter a matching reference
+transcript manually. Inference is local; optional iCloud sync includes saved
+reference recordings, embeddings and voice metadata.
 
 There is no login or account required to test the app.
 ```
@@ -126,7 +129,7 @@ Answer these questions in App Store Connect under **App Privacy**:
 | Does this app collect data not linked to identity? | **No** |
 | Does this app track users across apps/websites? | **No** |
 
-Select **No** for all data collection categories. There is nothing to declare.
+These answers describe the intended developer data-collection behavior. Review them against the exact submitted build and Apple's current definitions, including optional iCloud behavior, before submitting.
 
 ---
 

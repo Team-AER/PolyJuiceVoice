@@ -1,380 +1,83 @@
-# Build and Run Guide
+# Build and run PolyJuiceVoice
 
-Quick guide to build and run PolyJuiceVoice after recent updates.
+## Requirements
 
----
+- Apple silicon Mac, macOS 26+ and Xcode 26+ with the macOS/iOS 26 SDKs.
+- Swift 6; dependencies resolve through Xcode's Swift Package Manager integration. Keep the committed `Package.resolved` versions when reproducing a build.
+- Internet for initial package/model downloads and enough disk and memory for the chosen snapshot. The download manager checks available disk space; model sizes differ by capability, family and precision.
+- For iOS inference, a physical iOS 26+ device, Developer Mode and your own signing team. The iOS Simulator is not a supported inference target.
 
-## Prerequisites
+## Clone, resolve and build
 
-### Required
-- macOS 14.0+ (Sonoma or newer)
-- Xcode 16.0+
-- iOS 17.0+ device or simulator
-- 4GB free disk space (for models)
-
-### Optional
-- Physical iPhone/iPad with A14+ chip (for on-device testing)
-- Git LFS (if models are stored in LFS)
-
----
-
-## First Time Setup
-
-### 1. Clone and Prepare
 ```bash
-# Clone repository
-cd /Users/prakhar/Developer/AER/PolyJuiceVoice
-
-# Check git status
-git status
-
-# The following files should be modified:
-# - .gitignore (enhanced)
-# - PolyJuiceVoice.xcodeproj/project.pbxproj (settings updated)
-# - CLAUDE.md (MLX documentation)
-# - Various Swift files (CoreML removal)
-```
-
-### 2. Download Models
-
-**Option A: Manual Download**
-```bash
-# Create models directory
-mkdir -p PolyJuiceVoice/Resources/MLXModels
-
-# Download from Hugging Face or your storage
-# Models needed for the app bundle:
-# - Qwen3TTS_INT4 (1.0GB)
-#
-# Optional (not bundled to avoid duplicate resource names):
-# - Qwen3TTS_Decoder (436MB) → models/MLXModels/Qwen3TTS_Decoder
-
-# Expected structure:
-# PolyJuiceVoice/Resources/MLXModels/
-#   ├── Qwen3TTS_INT4/
-#   │   ├── config.json
-#   │   └── weights.npz
-#
-# Optional decoder (kept outside the app bundle):
-# models/MLXModels/Qwen3TTS_Decoder/
-#   ├── config.json
-#   └── weights.npz
-```
-
-**Option B: Use Pre-converted Models**
-```bash
-# If models already converted in scripts/
-cp -r scripts/mlx_models/Qwen3TTS_INT4 PolyJuiceVoice/Resources/MLXModels/
-cp -r scripts/mlx_models/Qwen3TTS_Decoder models/MLXModels/
-```
-
-### 3. Open Project
-```bash
-# Open in Xcode
+git clone https://github.com/Team-AER/PolyJuiceVoice.git
+cd PolyJuiceVoice
 open PolyJuiceVoice.xcodeproj
-
-# Or use Xcode menu:
-# File → Open → Select PolyJuiceVoice.xcodeproj
 ```
 
-### 4. Resolve Packages
-1. Xcode should automatically start resolving packages
-2. If not: **File → Packages → Resolve Package Versions**
-3. Wait for mlx-swift to download (~30 seconds)
+Select the **PolyJuiceVoice** scheme and **My Mac**. Let Xcode resolve packages, or choose **File → Packages → Resolve Package Versions**. Build and launch with ⌘R.
 
-### 5. Select Target Device
-- Top toolbar: Select "PolyJuiceVoice" scheme
-- Select device: **iPhone 15 Pro** (simulator) or your physical device
+The command-line build checks compilation; it does not launch the app:
 
----
-
-## Build Instructions
-
-### Quick Build (Cmd+B)
 ```bash
-# From command line:
 xcodebuild build \
-    -project PolyJuiceVoice.xcodeproj \
-    -scheme PolyJuiceVoice \
-    -destination 'platform=iOS Simulator,name=iPhone 15 Pro'
+  -project PolyJuiceVoice.xcodeproj \
+  -scheme PolyJuiceVoice \
+  -destination 'platform=macOS,arch=arm64'
 ```
 
-### Clean Build
-```bash
-# In Xcode: Product → Clean Build Folder (Cmd+Shift+K)
+For iOS, select a connected physical device and configure signing in Xcode. A generic device build is:
 
-# From command line:
-xcodebuild clean \
-    -project PolyJuiceVoice.xcodeproj \
-    -scheme PolyJuiceVoice
+```bash
+xcodebuild build \
+  -project PolyJuiceVoice.xcodeproj \
+  -scheme PolyJuiceVoice \
+  -destination 'generic/platform=iOS'
 ```
 
-### Expected Build Time
-- **First build**: 2-3 minutes (includes package resolution)
-- **Incremental builds**: 10-30 seconds
-- **Clean rebuild**: 1-2 minutes
+## Install models and try a workflow
 
----
+1. Launch the app and use the model setup prompt or **Settings → Model Storage** to open Model Manager.
+2. Download a snapshot for the capability: **CustomVoice** for presets, **Base** for cloning, or **VoiceDesign** for description-based voices. Base also advertises preset support in the app's registry. VoiceDesign is 1.7B only.
+3. Select the installed snapshot. A mode may request another download if it has no compatible installed selection.
+4. In **Speak**, enter a short sentence, choose a preset and generate. In **Design**, provide a voice description and sample text. In **Clone**, record at least three seconds or import a reference file, type the matching transcript and the target text.
+5. Play the generated audio and export/share its WAV. Save a designed/cloned voice to reuse it in Speak.
 
-## Run Instructions
+Model manifests are defined in [`ModelSnapshot.swift`](../PolyJuiceVoice/Core/ML/ModelSnapshot.swift), not by the old two-file FP16 conversion pipeline. The downloader fetches configuration, tokenizer, speech-tokenizer and safetensors files from Hugging Face. No Python conversion is required to run the app.
 
-### In Xcode
-1. Select device/simulator
-2. Press **Cmd+R** or click ▶️ Run button
-3. App should launch in ~5 seconds
+Managed storage roots are:
 
-### From Command Line
+| Platform | Root |
+|---|---|
+| macOS | The app's Application Support directory, under `PolyJuiceVoice/MLXModels/` (sandboxed builds may resolve this inside the container) |
+| iOS | The app's Documents directory, under `MLXModels/` |
+
+Each snapshot has its own folder, such as `Qwen3TTS-0.6B-CustomVoice-4bit`, with the paths from its manifest. Use Model Manager as the supported setup route. The runtime no longer reads `POLYJUICEVOICE_MODELS_DIR`, and copying legacy `weights.npz` or `talker_weights.safetensors` folders will not satisfy installation validation. Models are not delivered with ODR.
+
+Once compatible models are installed, synthesis runs locally. Optional iCloud library sync and explicitly sharing exports can use the network; see [Privacy](PRIVACY_POLICY.md).
+
+## Tests and verification
+
 ```bash
-# Build and run in simulator
 xcodebuild test \
-    -project PolyJuiceVoice.xcodeproj \
-    -scheme PolyJuiceVoice \
-    -destination 'platform=iOS Simulator,name=iPhone 15 Pro'
+  -project PolyJuiceVoice.xcodeproj \
+  -scheme PolyJuiceVoice \
+  -destination 'platform=macOS,arch=arm64' \
+  -only-testing:PolyJuiceVoiceTests
 ```
 
----
+Hardware/model integration tests require their model prerequisites; a compilation or test pass alone does not establish speech quality on every supported device. For release profiling, choose **Release** in the scheme and use Instruments to inspect memory and Metal activity with the snapshots you intend to ship.
 
-## First Launch
+## Troubleshooting
 
-### What to Expect
-1. App launches with tab navigation
-2. 3 tabs: Synthesis, Voice Design, Voice Clone
-3. Initially: Model loading ~3-5 seconds
-4. Once loaded: Ready to synthesize
+| Symptom | Next action |
+|---|---|
+| Missing MLX module | Resolve the committed package versions in Xcode, then rebuild. |
+| Unsupported SDK/deployment target | Check `xcodebuild -version` and select an Xcode installation with the 26 SDKs. |
+| Missing or invalid snapshot | Use Model Manager to download/retry the required capability; check disk space and the app's debug log. |
+| Memory pressure on iOS | Try a smaller compatible snapshot/precision and test on the physical target device. |
+| Microphone denied | Grant microphone access in system settings or import an existing reference clip. |
+| Voice cannot clone | Use a Base snapshot, usable reference audio and a matching transcript. The transcript is entered by the user, not automatically transcribed. |
+| iCloud toggle has no immediate effect | Restart the app after changing sync; sign in to iCloud and configure entitlements for your own signed build. |
 
-### Test Synthesis
-1. Go to **Synthesis** tab
-2. Enter text: "Hello, this is a test."
-3. Select voice: Ryan or Vivian
-4. Tap **Synthesize**
-5. Audio should play (currently placeholder sine waves)
-
-### Expected Behavior
-- ✓ App launches without crash
-- ✓ Models load successfully
-- ✓ Tokenization works
-- ✓ Audio chunks generate
-- ✓ Playback works
-- ⚠️ Audio quality is placeholder (decoder not implemented)
-
----
-
-## Running Tests
-
-### All Tests
-```bash
-# In Xcode: Product → Test (Cmd+U)
-
-# From command line:
-xcodebuild test \
-    -project PolyJuiceVoice.xcodeproj \
-    -scheme PolyJuiceVoice \
-    -destination 'platform=iOS Simulator,name=iPhone 15 Pro'
-```
-
-### Specific Test
-```bash
-# Run only MLXTTSServiceTests
-xcodebuild test \
-    -project PolyJuiceVoice.xcodeproj \
-    -scheme PolyJuiceVoice \
-    -only-testing:PolyJuiceVoiceTests/MLXTTSServiceTests \
-    -destination 'platform=iOS Simulator,name=iPhone 15 Pro'
-```
-
-### Test Results
-- Tests should complete in ~30 seconds
-- Expected: All pass (some may fail if models not present)
-
----
-
-## Common Issues
-
-### Issue: "Cannot find module 'MLX'"
-**Solution**:
-1. File → Packages → Resolve Package Versions
-2. Clean build folder (Cmd+Shift+K)
-3. Rebuild
-
-### Issue: "Model file not found"
-**Solution**:
-1. Check `PolyJuiceVoice/Resources/MLXModels/` exists
-2. Verify `config.json` and `weights.npz` are present
-3. In Xcode, verify folder is in project navigator
-4. Check Build Phases → Copy Bundle Resources
-
-### Issue: Build fails with Swift 6 errors
-**Solution**:
-1. Verify Xcode 16.0+
-2. Check project settings: Build Settings → Swift Language Version = 6.0
-3. Update packages to latest versions
-
-### Issue: "Metal device not available"
-**Solution**:
-1. Requires Metal-capable device/simulator
-2. Simulators: Use iPhone 12+ models
-3. Physical devices: A12 chip or newer
-
-### Issue: App crashes on launch
-**Solution**:
-1. Check Console for error messages
-2. Verify all resources are bundled
-3. Check tokenizer files exist
-4. Ensure deployment target matches device
-
----
-
-## Build Configurations
-
-### Debug (Default)
-- Full debug symbols
-- No optimization
-- Assertions enabled
-- Use for: Development
-
-**Build time**: Faster  
-**App size**: Larger  
-**Performance**: Slower
-
-### Release
-- Optimized code
-- dSYM symbols only
-- Assertions disabled
-- Use for: Testing performance, distribution
-
-**Build time**: Slower  
-**App size**: Smaller  
-**Performance**: Faster
-
-**To use Release**:
-1. Product → Scheme → Edit Scheme
-2. Run → Build Configuration → Release
-3. Build and run
-
----
-
-## Performance Profiling
-
-### Memory Usage
-```bash
-# In Xcode:
-# 1. Product → Profile (Cmd+I)
-# 2. Select "Allocations" instrument
-# 3. Run and synthesize some audio
-# 4. Check peak memory (should be < 2GB)
-```
-
-### Time Profiling
-```bash
-# 1. Product → Profile (Cmd+I)
-# 2. Select "Time Profiler"
-# 3. Run and synthesize
-# 4. Check for hot spots
-```
-
-### Metal Performance
-```bash
-# 1. Product → Profile (Cmd+I)
-# 2. Select "Metal System Trace"
-# 3. Run and synthesize
-# 4. Verify GPU utilization
-```
-
----
-
-## Device Testing
-
-### iOS Device Setup
-1. Connect iPhone/iPad via USB
-2. Trust computer on device
-3. In Xcode: Window → Devices and Simulators
-4. Verify device appears
-5. Select device in target dropdown
-6. Build and run (Cmd+R)
-
-### First Device Run
-- May need to enable Developer Mode on device:
-  - Settings → Privacy & Security → Developer Mode → ON
-  - Restart device
-  
-- May need to trust developer certificate:
-  - Settings → General → VPN & Device Management
-  - Trust your developer certificate
-
----
-
-## Distribution Build
-
-### Archive
-```bash
-# In Xcode:
-# 1. Product → Archive
-# 2. Wait for archive to complete (~2 minutes)
-# 3. Organizer window opens automatically
-```
-
-### Export
-```bash
-# In Organizer:
-# 1. Select archive
-# 2. Click "Distribute App"
-# 3. Choose distribution method:
-#    - App Store Connect
-#    - Ad Hoc
-#    - Enterprise
-#    - Development
-# 4. Follow wizard
-```
-
----
-
-## Next Steps After Successful Build
-
-1. **Test All Features**
-   - [ ] Synthesis with preset voices
-   - [ ] Voice design with instructions
-   - [ ] Voice cloning (currently placeholder)
-   - [ ] Recording
-   - [ ] Playback controls
-   - [ ] Export audio
-
-2. **Implement Speech Decoder**
-   - See `DECODER_STATUS.md`
-   - Estimated: 2-3 days
-   - Enables real speech output
-
-3. **Optimize Performance**
-   - Profile with Instruments
-   - Reduce memory usage
-   - Optimize model loading
-
-4. **Add Features**
-   - Voice library
-   - Saved voices
-   - Custom voice presets
-   - Batch synthesis
-
----
-
-## Support
-
-### Documentation
-- `CLAUDE.md` - Developer guide
-- `XCODE_PROJECT_SETUP.md` - Project configuration
-- `PROJECT_STATUS.md` - Current status
-- `DECODER_STATUS.md` - Decoder implementation
-
-### Troubleshooting
-- Check build logs: View → Navigators → Reports
-- Check console: Debug → Activate Console
-- View diagnostics: Product → Perform Action → Generate Build Reports
-
-### Getting Help
-- Check GitHub issues
-- Review MLX documentation
-- Apple Developer Forums
-- Swift Forums
-
----
-
-**Ready to build?** Open `PolyJuiceVoice.xcodeproj` and press **Cmd+R**! 🚀
+See [architecture](PRD.md), [script utilities](../scripts/README.md) and [vendored source attribution](../PolyJuiceVoice/Core/ML/MLX/Qwen3TTS/ATTRIBUTION.md).

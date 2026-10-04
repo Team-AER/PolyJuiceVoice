@@ -1,4 +1,6 @@
-# On-Demand Resources (ODR) Implementation Plan
+# Historical On-Demand Resources (ODR) Implementation Plan
+
+> **Archived proposal, not current setup.** ODR was not implemented. The app now downloads capability-specific Hugging Face safetensors snapshots through `ModelDownloadManager` and `ModelSnapshot`. The NPZ/PKL file names, sizes and proposed tasks below are historical. Use [Build and run](BUILD_AND_RUN.md) for current instructions.
 
 ## Overview
 
