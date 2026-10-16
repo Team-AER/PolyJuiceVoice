@@ -54,7 +54,7 @@ def export_tokenizer(model_name: str, output_dir: Path):
 
                 for merge_bytes, rank in sorted_merges:
                     try:
-                        merge_str = merge_bytes.decode('utf-8', errors='ignore')
+                        merge_str = merge_bytes.decode("utf-8", errors="ignore")
 
                         if len(merge_bytes) >= 2:
                             tokens = []
@@ -101,9 +101,15 @@ def export_tokenizer(model_name: str, output_dir: Path):
     print("Exporting tokenizer config...")
     config = {
         "vocab_size": len(vocab),
-        "model_max_length": tokenizer.model_max_length if hasattr(tokenizer, "model_max_length") else 2048,
-        "padding_side": tokenizer.padding_side if hasattr(tokenizer, "padding_side") else "right",
-        "truncation_side": tokenizer.truncation_side if hasattr(tokenizer, "truncation_side") else "right",
+        "model_max_length": tokenizer.model_max_length
+        if hasattr(tokenizer, "model_max_length")
+        else 2048,
+        "padding_side": tokenizer.padding_side
+        if hasattr(tokenizer, "padding_side")
+        else "right",
+        "truncation_side": tokenizer.truncation_side
+        if hasattr(tokenizer, "truncation_side")
+        else "right",
     }
     config_path = output_dir / "tokenizer_config.json"
     with open(config_path, "w") as f:
