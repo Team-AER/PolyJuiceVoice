@@ -68,6 +68,23 @@ xcodebuild test \
 
 Hardware/model integration tests require their model prerequisites; a compilation or test pass alone does not establish speech quality on every supported device. For release profiling, choose **Release** in the scheme and use Instruments to inspect memory and Metal activity with the snapshots you intend to ship.
 
+### Simulator UI audit
+
+The simulator can exercise the interface without MLX inference. In a **Debug simulator build only**, launch with `--ui-layout-audit` to show the workspace without installed models, or add `--ui-first-run` to audit setup. These switches skip GPU bootstrap and feature-service setup; they do not generate speech. Device and Release builds ignore them.
+
+Run the layout tests on an installed iPhone simulator:
+
+```bash
+xcodebuild test \
+  -project PolyJuiceVoice.xcodeproj \
+  -scheme PolyJuiceVoice \
+  -destination 'platform=iOS Simulator,name=Your Simulator' \
+  -only-testing:PolyJuiceVoiceUITests/MobileLayoutTests \
+  -parallel-testing-enabled NO
+```
+
+The tests keep screenshots of setup and Model Manager in portrait/landscape, the keyboard, feature playback controls, Library, Settings, Debug Log and accessibility text sizes. Continue using Metal hardware for speech-generation testing.
+
 ## Troubleshooting
 
 | Symptom | Next action |

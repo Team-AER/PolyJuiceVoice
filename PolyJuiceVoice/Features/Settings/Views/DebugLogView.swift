@@ -77,38 +77,52 @@ struct DebugLogView: View {
     }
 
     private var filterBar: some View {
-        HStack(spacing: 12) {
-            Menu {
-                Button("All levels") { levelFilter = nil }
-                Divider()
-                ForEach(LogLevel.allCases, id: \.self) { level in
-                    Button("\(level.emoji) \(level.rawValue.capitalized)") { levelFilter = level }
+        AdaptiveControlRow {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 12) {
+                    levelMenu
+                    categoryMenu
                 }
-            } label: {
-                Label(levelFilter.map { "\($0.emoji) \($0.rawValue.capitalized)" } ?? "All levels",
-                      systemImage: "line.3.horizontal.decrease.circle")
-            }
-            .buttonStyle(.glass)
-            .controlSize(.small)
-
-            Menu {
-                Button("All categories") { categoryFilter = nil }
-                Divider()
-                ForEach(allCategories, id: \.self) { cat in
-                    Button(cat) { categoryFilter = cat }
+                .fixedSize(horizontal: true, vertical: false)
+                VStack(alignment: .leading, spacing: 8) {
+                    levelMenu
+                    categoryMenu
                 }
-            } label: {
-                Label(categoryFilter ?? "All categories", systemImage: "tag")
             }
-            .buttonStyle(.glass)
-            .controlSize(.small)
-
-            Spacer()
-
+        } trailing: {
             Text("\(filteredEntries.count) entries")
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(.secondary)
         }
+    }
+
+    private var levelMenu: some View {
+        Menu {
+            Button("All levels") { levelFilter = nil }
+            Divider()
+            ForEach(LogLevel.allCases, id: \.self) { level in
+                Button("\(level.emoji) \(level.rawValue.capitalized)") { levelFilter = level }
+            }
+        } label: {
+            Label(levelFilter.map { "\($0.emoji) \($0.rawValue.capitalized)" } ?? "All levels",
+                  systemImage: "line.3.horizontal.decrease.circle")
+        }
+        .buttonStyle(.glass)
+        .controlSize(.small)
+    }
+
+    private var categoryMenu: some View {
+        Menu {
+            Button("All categories") { categoryFilter = nil }
+            Divider()
+            ForEach(allCategories, id: \.self) { cat in
+                Button(cat) { categoryFilter = cat }
+            }
+        } label: {
+            Label(categoryFilter ?? "All categories", systemImage: "tag")
+        }
+        .buttonStyle(.glass)
+        .controlSize(.small)
     }
 
     private var allCategories: [String] {
@@ -120,25 +134,54 @@ private struct LogRow: View {
     let entry: LogEntry
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Text(timeStr)
-                .font(.caption2.monospaced())
-                .foregroundStyle(.tertiary)
-                .frame(width: 88, alignment: .leading)
-            Text(entry.level.emoji)
-                .font(.caption)
-                .foregroundStyle(color(for: entry.level))
-                .frame(width: 14)
-            Text(entry.category)
-                .font(.caption2.monospaced())
-                .foregroundStyle(.secondary)
-                .frame(width: 78, alignment: .leading)
-            Text(entry.message)
-                .font(.caption.monospaced())
-                .textSelection(.enabled)
-                .foregroundStyle(.primary)
-                .frame(maxWidth: .infinity, alignment: .leading)
+        #if os(iOS)
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                timestamp
+                level
+                category
+            }
+            message
         }
+        .padding(.vertical, 4)
+        #else
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            timestamp
+                .frame(width: 88, alignment: .leading)
+            level
+                .frame(width: 14)
+            category
+                .frame(width: 78, alignment: .leading)
+            message
+        }
+        #endif
+    }
+
+    private var timestamp: some View {
+        Text(timeStr)
+            .font(.caption2.monospaced())
+            .foregroundStyle(.tertiary)
+    }
+
+    private var level: some View {
+        Text(entry.level.emoji)
+            .font(.caption)
+            .foregroundStyle(color(for: entry.level))
+    }
+
+    private var category: some View {
+        Text(entry.category)
+            .font(.caption2.monospaced())
+            .foregroundStyle(.secondary)
+    }
+
+    private var message: some View {
+        Text(entry.message)
+            .font(.caption.monospaced())
+            .textSelection(.enabled)
+            .foregroundStyle(.primary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .fixedSize(horizontal: false, vertical: true)
     }
 
     private var timeStr: String {

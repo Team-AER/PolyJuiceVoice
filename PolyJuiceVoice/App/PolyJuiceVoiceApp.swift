@@ -17,7 +17,9 @@ struct PolyJuiceVoiceApp: App {
     init() {
         // Pin the MLX default device to .gpu and set sensible Metal memory
         // limits before any DIContainer / MLXTTSService init touches MLX.
-        MLXRuntime.bootstrap()
+        if !UILayoutAudit.isEnabled {
+            MLXRuntime.bootstrap()
+        }
     }
 
     #if os(iOS)

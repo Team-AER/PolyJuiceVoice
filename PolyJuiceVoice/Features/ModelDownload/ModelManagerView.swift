@@ -98,13 +98,25 @@ struct ModelManagerView: View {
     private var capabilityPicker: some View {
         Picker("Capability", selection: $selectedTab) {
             ForEach(TTSCapability.allCases, id: \.self) { capability in
+                #if os(iOS)
+                Text(capability.displayName)
+                    .tag(capability)
+                #else
                 Label(capability.displayName,
                       systemImage: tabIcon(for: capability))
                     .tag(capability)
+                #endif
             }
         }
+        #if os(iOS)
+        .pickerStyle(.menu)
+        .controlSize(.large)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        #else
         .pickerStyle(.segmented)
+        #endif
         .labelsHidden()
+        .accessibilityIdentifier("model-capability-picker")
     }
 
     @ViewBuilder
@@ -131,6 +143,7 @@ struct ModelManagerView: View {
                 .padding(.bottom, 24)
             }
         }
+        .accessibilityIdentifier("model-scroll")
         .scrollContentBackground(.hidden)
     }
 
@@ -323,6 +336,7 @@ private struct VariantCard: View, Equatable {
     let onSetActive: (ModelSnapshot) -> Void
 
     @State private var focusedPrecision: ModelPrecision?
+    @ScaledMetric(relativeTo: .caption) private var precisionMinimumWidth = 88.0
 
     static func == (lhs: VariantCard, rhs: VariantCard) -> Bool {
         lhs.capability == rhs.capability &&
@@ -414,22 +428,14 @@ private struct VariantCard: View, Equatable {
     // MARK: - Pieces
 
     private func header(isActive: Bool) -> some View {
-        HStack(alignment: .firstTextBaseline) {
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 8) {
-                    Text(family.displayName)
-                        .font(.title3.bold())
-                    Text("·")
-                        .foregroundStyle(.tertiary)
-                    Text(snapshotCapability.displayName)
-                        .font(.title3.weight(.medium))
-                        .foregroundStyle(.secondary)
-                }
-                Text(coversBlurb)
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-            }
-            Spacer()
+        VStack(alignment: .leading, spacing: 4) {
+            Text("\(Text(family.displayName).bold()) · \(Text(snapshotCapability.displayName).foregroundStyle(.secondary))")
+                .font(.title3)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(coversBlurb)
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+                .fixedSize(horizontal: false, vertical: true)
             if isActive {
                 Label("Active", systemImage: "checkmark.circle.fill")
                     .foregroundStyle(.green)
@@ -445,7 +451,8 @@ private struct VariantCard: View, Equatable {
     /// stutter the user hit).
     private var precisionPills: some View {
         let focus = resolvedFocus
-        return HStack(spacing: 6) {
+        return LazyVGrid(columns: [GridItem(.adaptive(minimum: precisionMinimumWidth), alignment: .leading)],
+                         alignment: .leading, spacing: 6) {
             ForEach(candidates, id: \.id) { candidate in
                 PrecisionPill(
                     precision: candidate.precision,
@@ -454,7 +461,6 @@ private struct VariantCard: View, Equatable {
                     onTap: { focusedPrecision = candidate.precision }
                 )
             }
-            Spacer(minLength: 0)
         }
     }
 
@@ -475,12 +481,12 @@ private struct VariantCard: View, Equatable {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            HStack(spacing: 10) {
+            AdaptiveControlRow {
                 Label(sizeText(state: state, diskUsage: diskUsage, snapshot: snapshot),
                       systemImage: "internaldrive")
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.tertiary)
-                Spacer()
+            } trailing: {
                 actionButtons(snapshot: snapshot, state: state, isActive: isActive)
             }
         }
@@ -511,18 +517,18 @@ private struct VariantCard: View, Equatable {
         case .absent:
             Button("Download") { onDownload(snapshot) }
                 .buttonStyle(.glassProminent)
-                .controlSize(.small)
+                .controlSize(actionControlSize)
                 .help("Fetch this variant from Hugging Face. Stays on this device.")
 
         case .failed:
             Button("Retry") { onRetry(snapshot) }
                 .buttonStyle(.glass)
-                .controlSize(.small)
+                .controlSize(actionControlSize)
 
         case .downloading:
             Button("Downloading…") {}
                 .buttonStyle(.glass)
-                .controlSize(.small)
+                .controlSize(actionControlSize)
                 .disabled(true)
 
         case .installed:
@@ -530,7 +536,7 @@ private struct VariantCard: View, Equatable {
                 if !isActive {
                     Button("Use this") { onSetActive(snapshot) }
                         .buttonStyle(.glassProminent)
-                        .controlSize(.small)
+                        .controlSize(actionControlSize)
                         .help("Make this the active variant for \(capability.displayName).")
                 }
                 Button(role: .destructive) {
@@ -539,13 +545,21 @@ private struct VariantCard: View, Equatable {
                     Image(systemName: "trash")
                 }
                 .buttonStyle(.glass)
-                .controlSize(.small)
+                .controlSize(actionControlSize)
                 .help("Remove this variant and free disk space.")
             }
 
         case .checking:
             ProgressView().controlSize(.small)
         }
+    }
+
+    private var actionControlSize: ControlSize {
+        #if os(iOS)
+        .large
+        #else
+        .small
+        #endif
     }
 
     @ViewBuilder
@@ -638,6 +652,9 @@ private struct PrecisionPill: View {
                 }
             }
             .padding(.horizontal, 10)
+            #if os(iOS)
+            .frame(minHeight: 44)
+            #endif
             .padding(.vertical, 5)
             .background {
                 if isFocused {
