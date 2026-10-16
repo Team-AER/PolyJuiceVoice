@@ -31,15 +31,9 @@ xcodebuild build \
 
 **IMPORTANT**: iOS Simulator does NOT work — MLX requires Metal hardware. macOS builds run directly on your Mac (no device needed).
 
-### Model Setup for Development (macOS)
+### Model Setup
 
-Set `POLYJUICEVOICE_MODELS_DIR` in your Xcode scheme's environment variables to the directory containing `Qwen3TTS_FP16/` and `Qwen3TTS_Decoder/` subdirectories:
-
-```
-POLYJUICEVOICE_MODELS_DIR=/path/to/models/MLXModels
-```
-
-In production the app downloads models on first launch to `~/Library/Application Support/PolyJuiceVoice/MLXModels/`.
+Use the app's Model Manager to download and select a capability-specific snapshot. Current loading uses `ModelDownloadManager.directory(for:)`; the legacy `POLYJUICEVOICE_MODELS_DIR` override is not read. See `docs/BUILD_AND_RUN.md` and `ModelSnapshot.swift` for storage roots and manifests.
 
 ### Running Tests
 
@@ -69,16 +63,16 @@ xcodebuild test \
 
 ### Core Components
 
-1. **MLX Integration** (`PolyJuiceVoice/Core/ML/MLX/`)
-   - `MLXTTSService.swift`: Main TTS service actor (MainActor isolated)
-   - `MLXQwen3TTSModel.swift`: MLX-based transformer implementation (actor isolated)
-   - `MLXSpeechDecoder.swift`: Audio decoder (Snake activation + ResidualVectorQuantizer)
-   - `ConvLayers.swift`, `SnakeActivation.swift`, `ResidualVectorQuantizer.swift`: Neural network layers
+1. **MLX Integration** (`PolyJuiceVoice/Core/ML/`)
+   - `MLX/MLXTTSService.swift`: main synthesis service
+   - `MLX/Qwen3TTS/`: vendored model, speech tokenizer and speaker encoder
+   - `MLXRuntime.swift`: runtime configuration
+   - `ModelSnapshot.swift`, `ModelDownloadManager.swift`, `ModelSelectionStore.swift`: snapshot manifests, downloads and selection
 
 2. **Audio Pipeline** (`PolyJuiceVoice/Core/Audio/`)
    - `AudioEngine.swift`: AVAudioEngine wrapper for playback
    - `AudioRecorder.swift`: Recording for voice cloning
-   - `AudioExporter.swift`: Export to WAV/M4A
+   - `AudioExporter.swift`: Export the generated WAV
 
 3. **Storage** (`PolyJuiceVoice/Core/Storage/`)
    - `CoreDataStack.swift`: Core Data setup
@@ -93,26 +87,9 @@ xcodebuild test \
 
 ### Model Loading Architecture
 
-Models are loaded from filesystem paths with a platform-aware fallback strategy (see `MLXTTSService.swift`):
+`ModelSnapshot.swift` defines the supported capability/family/precision matrix and Hugging Face manifests. `ModelDownloadManager` downloads and validates the snapshot files in managed Application Support storage on macOS and Documents storage on iOS. `ModelSelectionStore` chooses snapshots per capability; `MLXTTSService` loads the selected folder through the vendored `Qwen3TTSModel.fromPretrained` implementation.
 
-**macOS path priority:**
-1. `~/Library/Application Support/PolyJuiceVoice/MLXModels/` — managed by `ModelDownloadManager` (production)
-2. App bundle resources (development only)
-3. `$POLYJUICEVOICE_MODELS_DIR/<ModelName>/` — DEBUG env var override for Xcode development
-
-**iOS path priority:**
-1. Documents directory — managed by `ModelDownloadManager`
-2. App bundle resources (physical device development builds)
-3. `$POLYJUICEVOICE_MODELS_DIR/<ModelName>/` — DEBUG env var override
-
-**Model Format**: MLX Swift API uses `.safetensors` format. The app consumes the HuggingFace `Qwen/Qwen3-TTS-0.6B` safetensors **directly** — no Python conversion step. `ModelDownloadManager` fetches them at first launch. Tensor-key ↔ Swift coupling is encoded in `PolyJuiceVoice/Core/ML/MLX/WeightKeyMap.swift`; `PolyJuiceVoiceTests/WeightKeyAuditTests` verifies that coupling stays in sync with the downloaded weights.
-
-**File Naming Convention**:
-- Talker model files: `talker_config.json`, `talker_weights.safetensors` (FP16, 3.6GB, 404 tensors)
-- Decoder model files: `decoder_config.json`, `decoder_weights.safetensors` (FP16, 436MB)
-
-**Production (both platforms)**: `ModelDownloadManager` downloads models on first launch and caches them. No ODR is used. The download gate UI (`ModelDownloadView`) blocks the main UI until models are present.
-- See `docs/ODR_IMPLEMENTATION_STATUS.md` for current progress
+Base supplies cloning, CustomVoice supplies presets, and 1.7B VoiceDesign supplies description-based voices. Current runtime files are safetensors and accompanying configuration/tokenizer files. No ODR or Python conversion is used. The old separate `MLXQwen3TTSModel`, `MLXSpeechDecoder` and `WeightKeyMap` architecture no longer describes the source tree.
 
 ## Swift 6 Concurrency Patterns
 
@@ -120,7 +97,7 @@ This codebase uses Swift 6 strict concurrency. Key patterns:
 
 ### Actor Isolation
 - `MLXTTSService`: `@MainActor` for UI updates
-- `MLXQwen3TTSModel`, `MLXSpeechDecoder`: Actors for thread-safe model inference
+- Vendored `Qwen3TTSModel` and the MLX runtime supply the current inference implementation; check their isolation before changing cross-thread access
 - Use `nonisolated` for initializers that don't access mutable state
 
 ### Sendability
@@ -150,7 +127,7 @@ final class MyService: ObservableObject {
 
 ## MLX API Compatibility
 
-Using mlx-swift v0.30.3. Key API differences from older versions:
+The committed package lockfile records mlx-swift v0.29.1 and mlx-swift-examples v2.29.1. Key API differences from older versions:
 
 - `Conv1d`: Use `inputChannels`/`outputChannels` (not `inChannels`/`outChannels`)
 - No `MLXRandom` module available - use `MLX.zeros()` for placeholder tensors
@@ -159,11 +136,11 @@ Using mlx-swift v0.30.3. Key API differences from older versions:
 ## File Organization Rules
 
 ### Model File Management
-- **Development**: Models MUST be in `PolyJuiceVoice/Resources/MLXModels/` for testing on physical devices (required for MLX/Metal). Physical devices cannot access the Mac's filesystem.
-- **Production**: Models are downloaded via ODR (On-Demand Resources) to Documents directory, NOT bundled in the IPA.
-- **Git**: `.gitignore` excludes `.safetensors`, `.npz`, and `.pkl` files to prevent large files from being committed.
-- **File naming**: Models use unique prefixes (`talker_*`, `decoder_*`) to prevent Xcode build conflicts when multiple models are bundled.
-- **Format**: MLX Swift API requires `.safetensors` format (supports dictionary of arrays via `loadArrays()`). `.npz` format is NOT supported.
+
+- Models are downloaded through Model Manager, not bundled for normal setup.
+- Each capability/family/precision snapshot has its own folder; file names come from `ModelSnapshot.manifest`.
+- `.gitignore` excludes large weight files. Do not commit downloaded models.
+- Safetensors are the runtime weight format; legacy NPZ/PKL conversion outputs are not installed snapshots.
 
 ### Core Data
 - Schema defined in `VoiceEntity.swift`
@@ -172,7 +149,7 @@ Using mlx-swift v0.30.3. Key API differences from older versions:
 ## Common Development Tasks
 
 ### Adding a New MLX Layer
-1. Create in `PolyJuiceVoice/Core/ML/MLX/Layers/`
+1. Locate the relevant component under `PolyJuiceVoice/Core/ML/MLX/Qwen3TTS/` and preserve its upstream attribution
 2. Use `nonisolated` functions for stateless operations
 3. Use `nonisolated(unsafe)` for stored properties if needed (e.g., `Conv1d` modules)
 4. Ensure all MLXArray operations are thread-safe
@@ -200,61 +177,25 @@ Using mlx-swift v0.30.3. Key API differences from older versions:
 
 ## Known Limitations
 
-1. **No Simulator Support**: MLX requires Metal, which isn't fully supported on simulator
-2. **Large Model Files**: 4GB total (FP16 models), must be downloaded separately (not in git repo)
-3. **Voice Cloning**: Currently falls back to voice design mode (reference audio embedding extraction not implemented)
-4. **Memory Usage**: ~3GB during inference on device (FP16 models)
-5. **Physical Device Required**: MLX requires Metal hardware, iOS Simulator will not work
+1. iOS Simulator inference is not supported; test on Metal hardware.
+2. Snapshot downloads require gigabytes of storage, with size dependent on family and precision.
+3. Memory use and speech quality need verification on the actual device/model combination.
+4. Voice cloning needs a Base snapshot, a usable reference clip and a matching user-entered transcript.
+5. iCloud sync is opt-in and requires a restart after toggling; do not describe all voice data as never leaving the device.
 
 ## Dependencies
 
-- **mlx-swift** v0.30.3: Apple MLX framework bindings
+- **mlx-swift** v0.29.1 (committed lockfile): Apple MLX framework bindings
 - **SwiftUI**: UI framework
 - **Core Data**: Voice library persistence
 - **AVFoundation**: Audio playback and recording
 
-## Models: direct from HuggingFace (no conversion)
+## Model and documentation references
 
-The app consumes `Qwen/Qwen3-TTS-0.6B` safetensors straight from HuggingFace — there is no Python conversion step. `ModelDownloadManager` downloads the four files below at first launch; `$POLYJUICEVOICE_MODELS_DIR` is the dev-time alternative (see `scripts/README.md`).
-
-| File | Source |
-|---|---|
-| `talker_config.json` | `huggingface.co/Qwen/Qwen3-TTS-0.6B/resolve/main/talker_config.json` |
-| `talker_weights.safetensors` (~3.6 GB) | `huggingface.co/Qwen/Qwen3-TTS-0.6B/resolve/main/talker_weights.safetensors` |
-| `decoder_config.json` | `huggingface.co/Qwen/Qwen3-TTS-0.6B/resolve/main/decoder_config.json` |
-| `decoder_weights.safetensors` (~436 MB) | `huggingface.co/Qwen/Qwen3-TTS-0.6B/resolve/main/decoder_weights.safetensors` |
-
-The coupling between the Swift inference code and the HuggingFace tensor names lives in `PolyJuiceVoice/Core/ML/MLX/WeightKeyMap.swift`. `PolyJuiceVoiceTests/WeightKeyAuditTests` asserts every key referenced by `generate()` is present in the loaded safetensors — run it when upgrading to a new model release:
-
-```bash
-xcodebuild test -project PolyJuiceVoice.xcodeproj -scheme PolyJuiceVoice \
-  -destination 'platform=macOS,arch=arm64' \
-  -only-testing:PolyJuiceVoiceTests/WeightKeyAuditTests
-```
-
-If the audit fails, update `WeightKeyMap.swift` to match the new tensor names.
-
-## Production Deployment
-
-**Using On-Demand Resources (ODR)** - Planned:
-- Models will be tagged as ODR assets in Xcode
-- Downloaded from Apple's CDN after initial install
-- Managed by `ODRManager` actor
-- UI prompts user to download on first launch
-
-**Challenges:**
-- Apple has 2GB per-tag limit, talker model is 3.6GB
-- Need to split model or use alternative delivery method
-
-**Alternative: Self-Hosted Downloads**:
-1. Host models on server (e.g., HuggingFace, S3)
-2. Download to Documents directory on first launch
-3. Verify checksums after download
-
-## Documentation References
-
-- `BUILD_AND_RUN.md`: Detailed build instructions
-- `REMAINING_WORK.md`: Current status and next steps
-- `PRD.md`: Product requirements and technical architecture
-- `docs/ODR_IMPLEMENTATION_PLAN.md`: ODR setup guide
-- `docs/ODR_IMPLEMENTATION_STATUS.md`: ODR implementation progress
+- `PolyJuiceVoice/Core/ML/ModelSnapshot.swift`: supported snapshots and manifests
+- `PolyJuiceVoice/Core/ML/MLX/Qwen3TTS/ATTRIBUTION.md`: vendored inference provenance
+- `docs/BUILD_AND_RUN.md`: current setup and test commands
+- `docs/PRD.md`: current product and architecture
+- `docs/PRIVACY_POLICY.md`: local inference, optional iCloud and export boundaries
+- `scripts/README.md`: developer utilities
+- `docs/ODR_IMPLEMENTATION_PLAN.md`: historical proposal, not implemented

@@ -17,9 +17,26 @@ struct ModelDownloadView: View {
     @State private var showingManager = false
 
     var body: some View {
-        VStack(spacing: 32) {
-            Spacer()
+        GeometryReader { geometry in
+            ScrollView {
+                setupContent
+                    .padding(24)
+                    .frame(maxWidth: .infinity)
+                    .frame(minHeight: geometry.size.height)
+            }
+        }
+        #if os(macOS)
+        .frame(minWidth: 520, minHeight: 460)
+        #endif
+        .sheet(isPresented: $showingManager) {
+            ModelManagerView()
+                .environmentObject(downloadManager)
+                .environmentObject(selectionStore)
+        }
+    }
 
+    private var setupContent: some View {
+        VStack(spacing: 32) {
             Image(systemName: "waveform.circle")
                 .font(.system(size: 72))
                 .foregroundStyle(.tint)
@@ -27,6 +44,7 @@ struct ModelDownloadView: View {
             VStack(spacing: 8) {
                 Text("PolyJuiceVoice")
                     .font(.largeTitle.bold())
+                    .multilineTextAlignment(.center)
                 Text("Take on any voice — on-device")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
@@ -44,12 +62,10 @@ struct ModelDownloadView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
-                HStack(spacing: 12) {
-                    Image(systemName: "lock.shield")
-                    Text("On-device · Stored locally · No audio leaves your Mac")
-                }
+                Label("On-device · Stored locally", systemImage: "lock.shield")
                 .font(.caption)
                 .foregroundStyle(.tertiary)
+                .multilineTextAlignment(.center)
 
                 Button("Choose a Model") {
                     showingManager = true
@@ -61,17 +77,6 @@ struct ModelDownloadView: View {
             if !downloadManager.snapshotStates.isEmpty {
                 downloadingFooter
             }
-
-            Spacer()
-        }
-        .padding(40)
-        #if os(macOS)
-        .frame(minWidth: 520, minHeight: 460)
-        #endif
-        .sheet(isPresented: $showingManager) {
-            ModelManagerView()
-                .environmentObject(downloadManager)
-                .environmentObject(selectionStore)
         }
     }
 

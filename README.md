@@ -1,112 +1,79 @@
 <p align="center">
-  <img src="docs/screenshots/logo.png" alt="PolyJuiceVoice logo" width="160" />
+  <img src="PolyJuiceVoice/Assets.xcassets/AppIcon.appiconset/icon-1024.png" alt="PolyJuiceVoice app icon" width="160" />
 </p>
 
 # PolyJuiceVoice
 
-On-device text-to-speech for macOS (and iOS) with voice cloning and voice design,
-powered by Apple's [MLX](https://github.com/ml-explore/mlx-swift) and the
-[Qwen3-TTS](https://huggingface.co/Qwen/Qwen3-TTS-0.6B) family of models. Everything
-runs locally over Metal — no audio, transcripts, or recordings ever leave the device.
+PolyJuiceVoice is Team AER's macOS-first text-to-speech studio, with an iOS target. It runs Qwen3-TTS locally with Swift, Apple's MLX and Metal: speak with preset voices, design a voice from a description, or clone a voice from a reference recording.
 
-> **Platforms:** macOS 26+ (primary), iOS 26+ (secondary).
-> **Hardware:** Apple silicon required. The iOS Simulator is not supported — MLX
-> needs a real Metal device.
+**Requirements:** Apple silicon Mac with macOS 26+, or a physical iOS 26+ device with enough memory for your selected model. The iOS Simulator is not a supported inference target. Model downloads require an internet connection and gigabytes of free storage; generation uses installed models locally.
 
----
+[Landing page source](https://github.com/Team-AER/aer-landing/tree/main/polyjuicevoice) · [Build and run](docs/BUILD_AND_RUN.md) · [Architecture](docs/PRD.md) · [Privacy](docs/PRIVACY_POLICY.md) · [Issues](https://github.com/Team-AER/PolyJuiceVoice/issues)
 
-## The four modes
+## What you can do
 
-The app is organized around four working modes plus a Settings tab. Each mode
-maps to a distinct task and uses the model best suited for it.
+| Area | Workflow |
+|---|---|
+| **Speak** | Enter text, select a preset or saved voice, and generate audio. Presets accept an optional style instruction. |
+| **Design** | Describe a new voice, generate a sample, and save the description as a reusable voice. Requires a VoiceDesign snapshot. |
+| **Clone** | Record at least three seconds of speech or import an audio file, enter its matching transcript and new text, and generate with a Base snapshot. Save the reference for reuse. |
+| **Library** | Search, filter, rename and delete saved cloned/designed voices, then select them for Speak. |
+| **Playback and export** | Play generated audio, scrub through the waveform and export/share a 24 kHz mono WAV. |
+| **Model Manager** | Download, select and delete capability-specific snapshots; inspect download progress and disk usage. |
+| **Settings** | Manage microphone access, debug logs and optional iCloud voice-library sync. Changing sync requires a restart. |
 
-### Speak
+The language picker offers English, Chinese, Japanese, Korean, Spanish, French and German. Model quality, latency and memory use vary with the selected family and precision; the repository does not establish a universal performance guarantee.
 
-![Speak tab](docs/screenshots/speak.png)
+### Screenshots
 
-Type a prompt, pick a voice, hit **Speak** (⌘↩). Voices are split into two
-sections: **Presets** (the stock speakers shipped with Qwen3-TTS) and **Your
-Voices** (anything you've cloned or designed and saved to the library). The
-playback card gives you scrub controls, a waveform, and an Export / Share button
-for the rendered audio.
+| Speak | Design |
+|---|---|
+| ![Speak tab](docs/screenshots/speak.png) | ![Design tab](docs/screenshots/design.png) |
 
-For preset voices a **Style instruction** field appears — a short natural-language
-hint like *"calm and warm"* or *"excited, fast pace"* that the model uses to color
-the delivery. Cloned and designed voices ignore the field; their character is
-already baked into the saved voice.
+| Clone | Library |
+|---|---|
+| ![Clone tab](docs/screenshots/clone.png) | ![Library tab](docs/screenshots/library.png) |
 
-### Design
+## How it works
 
-![Design tab](docs/screenshots/design.png)
+```mermaid
+flowchart TD
+    UI[SwiftUI: Speak / Design / Clone] --> VM[Feature view models]
+    VM --> TTS[MLXTTSService]
+    HF[Hugging Face snapshots] --> DL[ModelDownloadManager]
+    DL --> Disk[Local model snapshots]
+    Disk --> TTS
+    TTS --> MLX[Qwen3TTSModel on MLX / Metal]
+    MLX --> Audio[Audio chunks]
+    Audio --> Playback[AVFoundation playback]
+    Audio --> WAV[Incremental WAV writer and export]
+    VM --> Library[VoiceStorage and Core Data]
+    Library -. optional sync .-> Cloud[Private iCloud storage]
+```
 
-Build a brand-new voice from a written description — *"a warm female voice with a
-friendly tone,"* *"gravelly older man, slow cadence,"* etc. The model generates a
-sample reading the text you provided, you can iterate on the description until it
-sounds right, and **Save Voice** drops it into your library so it shows up under
-**Your Voices** in the Speak tab.
+The registry includes 0.6B Base/CustomVoice and 1.7B Base/CustomVoice/VoiceDesign snapshots at supported 4-, 5-, 6-, 8-bit or bf16 precisions. Not every capability/family has every precision. Base supplies cloning; CustomVoice supplies presets; VoiceDesign supplies description-based voices. See [the registry](PolyJuiceVoice/Core/ML/ModelSnapshot.swift) for the actual matrix and download manifests.
 
-This is the right mode when you don't have a reference recording but you do know
-what the voice should *feel* like.
+Synthesis runs on-device. Hugging Face serves model downloads; enabling iCloud sync uploads saved voice metadata, reference recordings and embeddings to your private iCloud storage. Export/share sends audio where you choose. See the [privacy policy](docs/PRIVACY_POLICY.md) for those boundaries.
 
-### Clone
+## Build from source
 
-![Clone tab](docs/screenshots/clone.png)
-
-Capture a short reference recording (⌘R to start/stop), type the **reference
-transcript** so the model knows what was actually said, then type whatever you
-want the cloned voice to say next. **Clone** (⌘↩) renders new audio in the same
-voice. Save it to the library and it becomes a regular pickable voice in the
-Speak tab.
-
-A few seconds of clean speech is enough — longer is fine but not required. The
-reference transcript field is multi-line because clean cloning works best when
-the transcript matches the recording word-for-word.
-
-### Library
-
-![Library tab](docs/screenshots/library.png)
-
-Everything you've cloned or designed lives here. Search by name, filter by type
-(cloned vs. designed), rename, delete. Selecting a voice in the Library is just
-a shortcut for "use this in Speak" — there's no separate playback surface, since
-all generation flows go through the Speak tab.
-
----
-
-## Settings
-
-Not a "mode" but worth a mention: **Settings** is where you manage downloaded
-models (the Qwen3-TTS variants — both 0.6B and 1.7B families across multiple
-precisions from 4-bit through bf16), grant microphone access for Clone, view the
-debug log, and check disk usage. The first time you launch the app a thin "set
-up models" prompt points you at the Model Manager.
-
----
-
-## Building from source
-
-Requires Xcode 17+ on Apple silicon.
+Use Xcode 26 or newer with the macOS/iOS 26 SDKs and Swift 6. The committed package lockfile records MLX Swift 0.29.1 and MLX Swift Examples 2.29.1.
 
 ```bash
-# macOS (primary target — runs directly on your Mac)
+git clone https://github.com/Team-AER/PolyJuiceVoice.git
+cd PolyJuiceVoice
 xcodebuild build \
   -project PolyJuiceVoice.xcodeproj \
   -scheme PolyJuiceVoice \
   -destination 'platform=macOS,arch=arm64'
-
-# Physical iOS device (no Simulator support — MLX needs Metal hardware)
-xcodebuild build \
-  -project PolyJuiceVoice.xcodeproj \
-  -scheme PolyJuiceVoice \
-  -destination 'generic/platform=iOS'
 ```
 
-For dev-time model loading without redownloading, set
-`POLYJUICEVOICE_MODELS_DIR` in your scheme's environment variables to a folder
-containing the unpacked `Qwen3TTS_*` subdirectories. See
-[`docs/BUILD_AND_RUN.md`](docs/BUILD_AND_RUN.md) and [`CLAUDE.md`](CLAUDE.md) for
-the full setup.
+Launch from Xcode, open Model Manager and download a snapshot for the mode you want to use. Models are downloaded separately, not committed to Git or delivered through Apple's On-Demand Resources. Current loading uses managed snapshot folders; the old `POLYJUICEVOICE_MODELS_DIR` override and two-folder FP16/decoder instructions no longer describe the runtime. See [the setup guide](docs/BUILD_AND_RUN.md) for physical iOS builds and troubleshooting.
 
-## License
+## Landing page
 
-[MIT](LICENSE).
+The Team AER landing site includes a PolyJuiceVoice product page with mode walkthroughs, a studio UI demo, model/platform specifications and links to source and releases. Its browser demo illustrates the workflow; it is separate from the native MLX inference engine. The page lives in [aer-landing/polyjuicevoice](https://github.com/Team-AER/aer-landing/tree/main/polyjuicevoice); the earlier [standalone landing repository](https://github.com/Team-AER/polyjuicevoice-landing) remains separate from this app.
+
+## Credits and license
+
+PolyJuiceVoice is licensed under [MIT](LICENSE). Its inference implementation builds on [AtomGradient/swift-qwen3-tts](https://github.com/AtomGradient/swift-qwen3-tts), itself a Swift port of [Blaizzy/mlx-audio](https://github.com/Blaizzy/mlx-audio). Thank you to those projects, Apple's MLX team, Qwen and the mlx-community model contributors. The vendored source provenance and pinned upstream commit are recorded in [ATTRIBUTION.md](PolyJuiceVoice/Core/ML/MLX/Qwen3TTS/ATTRIBUTION.md). Model weights and dependencies retain their own licenses.
