@@ -16,7 +16,7 @@ struct RootView: View {
     @EnvironmentObject private var downloadManager: ModelDownloadManager
 
     var body: some View {
-        if anySnapshotInstalled {
+        if UILayoutAudit.isEnabled ? UILayoutAudit.showsWorkspace : anySnapshotInstalled {
             ContentView()
         } else if !downloadManager.isInitialScanComplete {
             // Validation runs on a background task; show a thin loader until

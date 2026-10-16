@@ -39,6 +39,7 @@ struct SynthesisView: View {
                             .padding(.bottom, 110)   // leave room for the floating CTA
                         }
                     }
+                    .accessibilityIdentifier("feature-scroll")
                     .scrollContentBackground(.hidden)
                     .scrollEdgeEffectStyle(.soft, for: .top)
                     .scrollDismissesKeyboard(.immediately)
@@ -52,6 +53,7 @@ struct SynthesisView: View {
             .navigationTitle("Speak")
             .toolbar { toolbarContent }
             .task {
+                guard !UILayoutAudit.isEnabled else { return }
                 await viewModel.setup(
                     ttsService: container.ttsService,
                     audioEngine: container.audioEngine,
@@ -187,42 +189,44 @@ struct SynthesisView: View {
                 .frame(height: 64)
                 .accessibilityLabel("Waveform of synthesized audio")
 
-                HStack(spacing: 18) {
-                    Button {
-                        viewModel.seekBackward()
-                    } label: {
-                        Image(systemName: "gobackward.10").font(.title2)
-                    }
-                    .buttonStyle(.glass)
-                    .controlSize(.regular)
-                    .accessibilityLabel("Skip back 10 seconds")
-                    .disabled(!viewModel.hasAudio)
-                    .keyboardShortcut(.leftArrow, modifiers: [.command])
+                AdaptiveControlRow {
+                    HStack(spacing: 18) {
+                        Button {
+                            viewModel.seekBackward()
+                        } label: {
+                            Image(systemName: "gobackward.10").font(.title2)
+                        }
+                        .buttonStyle(.glass)
+                        .controlSize(.regular)
+                        .accessibilityLabel("Skip back 10 seconds")
+                        .disabled(!viewModel.hasAudio)
+                        .keyboardShortcut(.leftArrow, modifiers: [.command])
 
-                    Button {
-                        viewModel.togglePlayback()
-                    } label: {
-                        Image(systemName: viewModel.isPlaying ? "pause.fill" : "play.fill")
-                            .font(.title2)
-                    }
-                    .buttonStyle(.glass)
-                    .controlSize(.regular)
-                    .accessibilityLabel(viewModel.isPlaying ? "Pause" : "Play")
-                    .disabled(!viewModel.hasAudio)
-                    .keyboardShortcut(.space, modifiers: [])
+                        Button {
+                            viewModel.togglePlayback()
+                        } label: {
+                            Image(systemName: viewModel.isPlaying ? "pause.fill" : "play.fill")
+                                .font(.title2)
+                        }
+                        .buttonStyle(.glass)
+                        .controlSize(.regular)
+                        .accessibilityLabel(viewModel.isPlaying ? "Pause" : "Play")
+                        .disabled(!viewModel.hasAudio)
+                        .keyboardShortcut(.space, modifiers: [])
 
-                    Button {
-                        viewModel.seekForward()
-                    } label: {
-                        Image(systemName: "goforward.10").font(.title2)
-                    }
-                    .buttonStyle(.glass)
-                    .controlSize(.regular)
-                    .accessibilityLabel("Skip forward 10 seconds")
-                    .disabled(!viewModel.hasAudio)
-                    .keyboardShortcut(.rightArrow, modifiers: [.command])
+                        Button {
+                            viewModel.seekForward()
+                        } label: {
+                            Image(systemName: "goforward.10").font(.title2)
+                        }
+                        .buttonStyle(.glass)
+                        .controlSize(.regular)
+                        .accessibilityLabel("Skip forward 10 seconds")
+                        .disabled(!viewModel.hasAudio)
+                        .keyboardShortcut(.rightArrow, modifiers: [.command])
 
-                    Spacer()
+                    }
+                } trailing: {
 
                     if let url = viewModel.exportURL {
                         ShareLink(item: url) {

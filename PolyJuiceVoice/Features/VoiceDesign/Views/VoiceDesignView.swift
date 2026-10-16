@@ -35,6 +35,7 @@ struct VoiceDesignView: View {
                             .padding(.bottom, 110)
                         }
                     }
+                    .accessibilityIdentifier("feature-scroll")
                     .scrollContentBackground(.hidden)
                     .scrollEdgeEffectStyle(.soft, for: .top)
                     .scrollDismissesKeyboard(.immediately)
@@ -48,6 +49,7 @@ struct VoiceDesignView: View {
             .navigationTitle("Design")
             .toolbar { toolbarContent }
             .task {
+                guard !UILayoutAudit.isEnabled else { return }
                 await viewModel.setup(
                     ttsService: container.ttsService,
                     audioEngine: container.audioEngine,
@@ -150,28 +152,30 @@ struct VoiceDesignView: View {
                              progress: viewModel.playbackProgress)
                     .frame(height: 64)
 
-                HStack(spacing: 18) {
-                    Button {
-                        viewModel.togglePlayback()
-                    } label: {
-                        Image(systemName: viewModel.isPlaying ? "pause.fill" : "play.fill")
-                            .font(.title2)
-                    }
-                    .buttonStyle(.glass)
-                    .accessibilityLabel(viewModel.isPlaying ? "Pause" : "Play")
-                    .disabled(!viewModel.hasAudio)
-                    .keyboardShortcut(.space, modifiers: [])
+                AdaptiveControlRow {
+                    HStack(spacing: 18) {
+                        Button {
+                            viewModel.togglePlayback()
+                        } label: {
+                            Image(systemName: viewModel.isPlaying ? "pause.fill" : "play.fill")
+                                .font(.title2)
+                        }
+                        .buttonStyle(.glass)
+                        .accessibilityLabel(viewModel.isPlaying ? "Pause" : "Play")
+                        .disabled(!viewModel.hasAudio)
+                        .keyboardShortcut(.space, modifiers: [])
 
-                    Button {
-                        showingSaveSheet = true
-                    } label: {
-                        Label("Save Voice", systemImage: "tray.and.arrow.down")
-                    }
-                    .buttonStyle(.glass)
-                    .disabled(!viewModel.canSaveVoice)
-                    .keyboardShortcut("s", modifiers: [.command])
+                        Button {
+                            showingSaveSheet = true
+                        } label: {
+                            Label("Save Voice", systemImage: "tray.and.arrow.down")
+                        }
+                        .buttonStyle(.glass)
+                        .disabled(!viewModel.canSaveVoice)
+                        .keyboardShortcut("s", modifiers: [.command])
 
-                    Spacer()
+                    }
+                } trailing: {
 
                     if let url = viewModel.exportURL {
                         ShareLink(item: url) {

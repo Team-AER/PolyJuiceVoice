@@ -119,6 +119,31 @@ struct GlassCard<Content: View>: View {
     }
 }
 
+/// Keep labelled actions readable on phones and at larger text sizes.
+/// Use one row when both groups fit, then move the secondary group below.
+struct AdaptiveControlRow<Leading: View, Trailing: View>: View {
+    @ViewBuilder var leading: Leading
+    @ViewBuilder var trailing: Trailing
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 18) {
+                leading.fixedSize(horizontal: true, vertical: false)
+                Spacer(minLength: 0)
+                trailing.fixedSize(horizontal: true, vertical: false)
+            }
+            VStack(alignment: .leading, spacing: 12) {
+                leading
+                trailing
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        #if os(iOS)
+        .controlSize(.large)
+        #endif
+    }
+}
+
 // MARK: - Toolbar bug-report (debug log) button
 
 /// Drop into any `.toolbar { ... }` so every screen has a one-tap path
