@@ -375,6 +375,21 @@ final class SynthesisViewModel: ObservableObject {
         }
     }
 
+    var playbackTimecode: String {
+        let elapsed = Int(audioDuration * min(1, max(0, playbackProgress)))
+        let total = max(0, Int(audioDuration))
+        return "\(elapsed / 60):\(String(format: "%02d", elapsed % 60)) / \(total / 60):\(String(format: "%02d", total % 60))"
+    }
+
+    func seek(toProgress fraction: Double) {
+        guard hasAudio, let engine = audioEngine, let url = audioFileURL, audioDuration > 0 else { return }
+        let target = audioDuration * min(1, max(0, fraction))
+        Task {
+            do { try await engine.playFile(url, from: target) }
+            catch { self.error = "Seeking failed: \(error.localizedDescription)" }
+        }
+    }
+
     func seekForward() {
         guard let engine = audioEngine, let url = audioFileURL else {
             error = "No audio to seek."

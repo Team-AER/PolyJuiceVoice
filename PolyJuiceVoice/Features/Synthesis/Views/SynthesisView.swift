@@ -17,6 +17,11 @@ struct SynthesisView: View {
     @EnvironmentObject var downloadManager: ModelDownloadManager
     @EnvironmentObject var selectionStore: ModelSelectionStore
 
+    @Namespace private var voiceSelection
+    @State private var auditionReveal: CGFloat = 0
+    @State private var motionEpoch = 0
+    @State private var scrubPosition = 0.0
+    @State private var isScrubbing = false
     @State private var showingModelManager = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -26,20 +31,28 @@ struct SynthesisView: View {
                 if let needs = viewModel.unconfiguredCapability {
                     centeredMissingPrompt(needs)
                 } else {
-                    ScrollView {
-                        GlassEffectContainer(spacing: 18) {
-                            VStack(alignment: .leading, spacing: 18) {
-                                voiceSelector
-                                textEditor
-                                instructionField
-                                languageSelector
-                                playbackCard
+                    GeometryReader { geometry in
+                        ScrollView {
+                            GlassEffectContainer(spacing: 18) {
+                                let wide = geometry.size.width >= 720
+                                Group {
+                                    if wide {
+                                        HStack(alignment: .top, spacing: 24) {
+                                            authoringSurface.frame(maxWidth: .infinity)
+                                            playbackCard.frame(width: 300)
+                                        }
+                                    } else {
+                                        VStack(alignment: .leading, spacing: 24) {
+                                            authoringSurface
+                                            playbackCard
+                                        }
+                                    }
+                                }
+                                .padding(.horizontal, 18)
+                                .padding(.top, 18)
+                                .padding(.bottom, 110)
                             }
-                            .padding(.horizontal, 18)
-                            .padding(.top, 12)
-                            .padding(.bottom, 110)   // leave room for the floating CTA
                         }
-                    }
                     .accessibilityIdentifier("feature-scroll")
                     .scrollContentBackground(.hidden)
                     .scrollEdgeEffectStyle(.soft, for: .top)
@@ -48,6 +61,7 @@ struct SynthesisView: View {
                         synthesizeButton
                             .padding(.horizontal, 18)
                             .padding(.bottom, 14)
+                        }
                     }
                 }
             }
@@ -63,7 +77,19 @@ struct SynthesisView: View {
                     selectionStore: selectionStore
                 )
             }
-            .onAppear { Task { await viewModel.reloadVoiceOptions() } }
+            .onAppear {
+                auditionReveal = viewModel.hasAudio ? 1 : 0
+                Task { await viewModel.reloadVoiceOptions() }
+            }
+            .onChange(of: viewModel.hasAudio) { _, ready in
+                withAnimation(reduceMotion ? nil : .easeOut(duration: 0.48)) { auditionReveal = ready ? 1 : 0 }
+            }
+            .onChange(of: reduceMotion) { _, _ in
+                // Recreate only the drawing host so an active reveal settles,
+                // while text-entry and playback controls retain their identity.
+                motionEpoch += 1
+                auditionReveal = viewModel.hasAudio ? 1 : 0
+            }
             .alert("Error", isPresented: errorBinding) {
                 Button("OK") { viewModel.clearError() }
             } message: {
@@ -108,6 +134,29 @@ struct SynthesisView: View {
         .scrollContentBackground(.hidden)
     }
 
+    private var authoringSurface: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("YOUR WORDS, GIVEN A VOICE")
+                    .font(.caption2.weight(.semibold)).tracking(1.2).foregroundStyle(.secondary)
+                Text("\(viewModel.selectedOption.name)’s voice.")
+                    .font(.system(.largeTitle, design: .rounded, weight: .semibold))
+                    .foregroundStyle(.tint)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            voiceSelector
+            textEditor
+            instructionField
+            languageSelector
+        }
+    }
+
+    private func selectVoice(_ voice: VoiceOption) {
+        withAnimation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.82)) {
+            viewModel.selectedOption = voice
+        }
+    }
+
     private var voiceSelector: some View {
         VStack(alignment: .leading, spacing: 12) {
             FieldLabel(title: "Voice")
@@ -117,7 +166,8 @@ struct SynthesisView: View {
                 tint: .accentColor,
                 options: presetOptions,
                 selected: viewModel.selectedOption,
-                onSelect: { viewModel.selectedOption = $0 }
+                namespace: voiceSelection,
+                onSelect: selectVoice
             )
 
             if !savedOptions.isEmpty {
@@ -126,7 +176,8 @@ struct SynthesisView: View {
                     tint: .purple,
                     options: savedOptions,
                     selected: viewModel.selectedOption,
-                    onSelect: { viewModel.selectedOption = $0 }
+                    namespace: voiceSelection,
+                onSelect: selectVoice
                 )
             }
         }
@@ -181,50 +232,64 @@ struct SynthesisView: View {
     }
 
     private var playbackCard: some View {
-        GlassCard {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    Text("Preview").font(.subheadline.weight(.semibold))
-                    Spacer()
-                    if viewModel.hasAudio {
-                        Label(UILayoutAudit.showsSyntheticPreview ? "Synthetic preview" : "Audio ready", systemImage: "checkmark.circle")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("LISTENING STAGE").font(.caption2.weight(.semibold)).tracking(1.1).foregroundStyle(.white.opacity(0.65))
+                    Text("Preview").font(.title2.weight(.semibold))
                 }
-                ZStack {
-                    if viewModel.hasAudio {
-                        WaveformView(
-                            samples: viewModel.waveformSamples,
-                            progress: viewModel.playbackProgress
-                        )
-                        .accessibilityLabel("Waveform of synthesized audio")
-                        .transition(.opacity)
-                    } else {
-                        VStack(spacing: 6) {
-                            Text(viewModel.isSynthesizing ? "Creating your audio…" : "Preview appears after Speak")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .multilineTextAlignment(.center)
+                Spacer()
+                Image(systemName: "waveform").font(.title2)
+                    .foregroundStyle(.white.opacity(0.75))
+                    .symbolEffect(.variableColor.iterative, options: .repeating,
+                                  isActive: viewModel.isSynthesizing && !reduceMotion)
+            }
+            Text(viewModel.selectedOption.name).font(.callout.weight(.medium)).foregroundStyle(.white.opacity(0.8))
+            ZStack {
+                if viewModel.hasAudio {
+                    WaveformView(samples: viewModel.waveformSamples,
+                                 progress: isScrubbing ? scrubPosition : viewModel.playbackProgress,
+                                 tint: .white, showsPlayhead: true)
+                        .mask(alignment: .leading) {
+                            Rectangle().scaleEffect(x: reduceMotion ? 1 : auditionReveal, y: 1, anchor: .leading)
                         }
-                        .frame(maxWidth: .infinity)
-                        .transition(.opacity)
-                    }
+                        .id(motionEpoch)
+                        .accessibilityLabel("Waveform of synthesized audio")
+                } else {
+                    VStack(spacing: 12) {
+                        if viewModel.isSynthesizing { ProgressView().tint(.white) }
+                        Text(viewModel.isSynthesizing ? "Creating your audio…" : "Preview appears after Speak")
+                            .font(.callout).foregroundStyle(.white.opacity(0.75))
+                            .multilineTextAlignment(.center)
+                    }.frame(maxWidth: .infinity)
                 }
-                .frame(height: 64)
-                .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: viewModel.hasAudio)
-
-                #if DEBUG
-                if UILayoutAudit.showsSyntheticPreview {
-                    Button(viewModel.hasAudio ? "Reset synthetic preview" : "Show synthetic preview") {
-                        viewModel.toggleSyntheticPreview()
+            }
+            .frame(height: 126)
+            .background(.white.opacity(0.035), in: RoundedRectangle(cornerRadius: 14))
+            if viewModel.hasAudio {
+                VStack(spacing: 7) {
+                    Slider(value: Binding(get: { isScrubbing ? scrubPosition : viewModel.playbackProgress },
+                                          set: { scrubPosition = $0 }), in: 0...1) { editing in
+                        if editing { scrubPosition = viewModel.playbackProgress }
+                        isScrubbing = editing
+                        if !editing { viewModel.seek(toProgress: scrubPosition) }
                     }
+                    .tint(.white)
+                    .accessibilityLabel("Playback position")
+                    HStack {
+                        Label(UILayoutAudit.showsSyntheticPreview ? "Synthetic preview" : "Audio ready", systemImage: "checkmark.circle")
+                        Spacer()
+                        if !UILayoutAudit.showsSyntheticPreview { Text(viewModel.playbackTimecode).monospacedDigit() }
+                    }.font(.caption2).foregroundStyle(.white.opacity(0.75))
+                }
+            }
+            #if DEBUG
+            if UILayoutAudit.showsSyntheticPreview {
+                Button(viewModel.hasAudio ? "Reset synthetic preview" : "Show synthetic preview") { viewModel.toggleSyntheticPreview() }
                     .font(.caption)
-                    Text("Visual fixture only · no audio generated")
-                        .font(.caption2).foregroundStyle(.secondary)
-                }
-                #endif
-
+                Text("Visual fixture only · no audio generated").font(.caption2).foregroundStyle(.white.opacity(0.65))
+            }
+            #endif
                 AdaptiveControlRow {
                     HStack(spacing: 18) {
                         Button {
@@ -284,8 +349,17 @@ struct SynthesisView: View {
                         .keyboardShortcut("e", modifiers: [.command])
                     }
                 }
-            }
         }
+        .padding(22)
+        .foregroundStyle(.white)
+        .background {
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(LinearGradient(colors: [Color(red: 0.08, green: 0.24, blue: 0.44), Color(red: 0.035, green: 0.10, blue: 0.22)],
+                                     startPoint: .topLeading, endPoint: .bottomTrailing))
+        }
+        .overlay(RoundedRectangle(cornerRadius: 24).strokeBorder(.white.opacity(0.16), lineWidth: 0.5))
+        .shadow(color: .blue.opacity(0.12), radius: 22, y: 10)
+        .environment(\.colorScheme, .dark)
     }
 
     private var synthesizeButton: some View {
@@ -317,6 +391,7 @@ private struct VoicePillSection: View {
     let tint: Color
     let options: [VoiceOption]
     let selected: VoiceOption
+    let namespace: Namespace.ID
     let onSelect: (VoiceOption) -> Void
 
     var body: some View {
@@ -339,6 +414,7 @@ private struct VoicePillSection: View {
                             label: option.name,
                             tint: tint,
                             isSelected: option == selected,
+                            namespace: namespace,
                             onTap: { onSelect(option) }
                         )
                     }
@@ -356,6 +432,8 @@ private struct VoicePill: View {
     let label: String
     let tint: Color
     let isSelected: Bool
+    let namespace: Namespace.ID
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let onTap: () -> Void
 
     var body: some View {
@@ -367,12 +445,11 @@ private struct VoicePill: View {
                 .padding(.vertical, 7)
                 .background {
                     if isSelected {
-                        Capsule(style: .continuous)
-                            .fill(tint.opacity(0.18))
-                            .overlay(
-                                Capsule(style: .continuous)
-                                    .strokeBorder(tint.opacity(0.55), lineWidth: 1)
-                            )
+                        if reduceMotion {
+                            selectedCapsule
+                        } else {
+                            selectedCapsule.matchedGeometryEffect(id: "selected-voice", in: namespace)
+                        }
                     } else {
                         Capsule(style: .continuous)
                             .fill(.thinMaterial)
@@ -387,6 +464,11 @@ private struct VoicePill: View {
         .buttonStyle(.plain)
         .accessibilityLabel(label)
         .accessibilityAddTraits(isSelected ? [.isSelected, .isButton] : [.isButton])
+    }
+
+    private var selectedCapsule: some View {
+        Capsule(style: .continuous).fill(tint.opacity(0.18))
+            .overlay(Capsule(style: .continuous).strokeBorder(tint.opacity(0.55), lineWidth: 1))
     }
 }
 

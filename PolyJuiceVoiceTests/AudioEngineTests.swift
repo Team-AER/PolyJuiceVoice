@@ -68,7 +68,7 @@ final class AudioEngineTests: XCTestCase {
 
     // MARK: - Audio Format Tests
 
-    func testAudioChunkConversion() throws {
+    func testAudioChunkConversion() async throws {
         let chunk = AudioChunk(
             samples: Array(repeating: 0.5, count: 4800),
             sampleRate: 24000,
@@ -82,12 +82,10 @@ final class AudioEngineTests: XCTestCase {
         }
 
         // Should not throw when playing
-        Task {
-            try await audioEngine.playStream(stream)
-        }
+        try await audioEngine.playStream(stream)
     }
 
-    func testHandlesInvalidAudioChunk() throws {
+    func testHandlesInvalidAudioChunk() async throws {
         // Chunk with out-of-range samples
         let chunk = AudioChunk(
             samples: [2.0, -2.0, 10.0], // Out of [-1, 1] range
@@ -101,9 +99,7 @@ final class AudioEngineTests: XCTestCase {
         }
 
         // Should still handle gracefully (clipping internally)
-        Task {
-            try await audioEngine.playStream(stream)
-        }
+        try await audioEngine.playStream(stream)
     }
 
     // MARK: - State Tests
@@ -117,6 +113,43 @@ final class AudioEngineTests: XCTestCase {
         try await audioEngine.playStream(stream)
 
         XCTAssertFalse(audioEngine.isPlaying, "Should not be playing after completion")
+    }
+
+    func testSeekingKeepsTheNewSegmentPlayingWhenOldCompletionReturns() async throws {
+        let url = try silentFile(seconds: 5)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let first = Task { try await audioEngine.playFile(url) }
+        try await Task.sleep(for: .milliseconds(100))
+        let replacement = Task { try await audioEngine.playFile(url, from: 2) }
+        try await Task.sleep(for: .milliseconds(150))
+        try await first.value
+        XCTAssertTrue(audioEngine.isPlaying)
+        XCTAssertGreaterThanOrEqual(audioEngine.currentTime, 2)
+        audioEngine.stop()
+        try await replacement.value
+    }
+
+    func testSeekingToTheEndStopsAndKeepsTheActualEndpoint() async throws {
+        let url = try silentFile(seconds: 2)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let playing = Task { try await audioEngine.playFile(url) }
+        try await Task.sleep(for: .milliseconds(100))
+        try await audioEngine.playFile(url, from: 99)
+        try await playing.value
+        XCTAssertFalse(audioEngine.isPlaying)
+        XCTAssertEqual(audioEngine.currentTime, 2, accuracy: 0.001)
+        XCTAssertEqual(audioEngine.duration, 2, accuracy: 0.001)
+    }
+
+    private func silentFile(seconds: Double) throws -> URL {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).appendingPathExtension("wav")
+        let format = try XCTUnwrap(AVAudioFormat(standardFormatWithSampleRate: 24000, channels: 1))
+        let frames = AVAudioFrameCount(seconds * 24000)
+        let buffer = try XCTUnwrap(AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frames))
+        buffer.frameLength = frames
+        let file = try AVAudioFile(forWriting: url, settings: format.settings)
+        try file.write(from: buffer)
+        return url
     }
 
     // MARK: - Helper Methods
