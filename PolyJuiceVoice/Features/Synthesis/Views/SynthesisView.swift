@@ -202,9 +202,7 @@ struct SynthesisView: View {
                         .transition(.opacity)
                     } else {
                         VStack(spacing: 6) {
-                            Text(viewModel.isSynthesizing ? "Creating your audio…" : "Listen to your generated voice")
-                                .font(.subheadline.weight(.medium))
-                            Text(viewModel.isSynthesizing ? "Your preview will appear here when it is ready." : "Choose a voice, add your text, then select Speak.")
+                            Text(viewModel.isSynthesizing ? "Creating your audio…" : "Preview appears after Speak")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                                 .multilineTextAlignment(.center)
