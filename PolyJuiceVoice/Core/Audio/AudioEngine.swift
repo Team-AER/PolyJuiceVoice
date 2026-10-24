@@ -43,6 +43,8 @@ final class AudioEngine: ObservableObject {
     /// Held during file-based playback so the underlying file outlives the
     /// `AVAudioPlayerNode.scheduleFile/Segment` read window.
     private var currentFile: AVAudioFile?
+    // Completion of a stopped segment must never stop a newer seek.
+    private var filePlaybackID: UUID?
 
     init(sampleRate: Double = 24000) {
         self.format = AVAudioFormat(
@@ -108,6 +110,7 @@ final class AudioEngine: ObservableObject {
     }
 
     func stop() {
+        filePlaybackID = nil
         playerNode.stop()
         engine.stop()
         isPlaying = false
@@ -145,11 +148,16 @@ final class AudioEngine: ObservableObject {
         let clampedTime = max(0, min(time, totalDuration))
         let startFrame = AVAudioFramePosition(clampedTime * processingFormat.sampleRate)
         let frameCount = AVAudioFrameCount(max(0, totalFrames - startFrame))
-        guard frameCount > 0 else { return }
-
         if isPlaying || engine.isRunning {
             stop()
         }
+        guard frameCount > 0 else {
+            duration = totalDuration
+            currentTime = totalDuration
+            return
+        }
+        let playbackID = UUID()
+        filePlaybackID = playbackID
 
         configureAudioSessionIfNeeded()
         // The synthesis-time format and the file format match (Float32 mono
@@ -175,6 +183,7 @@ final class AudioEngine: ObservableObject {
             }
         }
 
+        guard filePlaybackID == playbackID else { return }
         stop()
     }
 
@@ -362,7 +371,7 @@ final class AudioEngine: ObservableObject {
         // add the offset captured at scheduleSegment time to report the true
         // file position when the user has seeked.
         let elapsed = Double(playerTime.sampleTime) / playerTime.sampleRate
-        currentTime = playbackStartOffset + elapsed
+        currentTime = min(duration, playbackStartOffset + max(0, elapsed))
     }
 
     private func decodeAudio(data: Data, format: AudioFormat) throws -> AVAudioPCMBuffer {

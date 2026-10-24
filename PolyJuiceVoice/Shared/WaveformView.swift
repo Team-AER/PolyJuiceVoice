@@ -13,6 +13,8 @@ import SwiftUI
 struct WaveformView: View {
     let samples: [Float]
     let progress: Double
+    var tint: Color = .accentColor
+    var showsPlayhead = false
 
     var body: some View {
         Canvas { context, size in
@@ -39,7 +41,7 @@ struct WaveformView: View {
                 }
                 context.stroke(
                     bar,
-                    with: .color(.accentColor),
+                    with: .color(tint.opacity(showsPlayhead && CGFloat(i) / CGFloat(count) > CGFloat(progress) ? 0.4 : 1)),
                     style: StrokeStyle(lineWidth: barWidth, lineCap: .round)
                 )
             }
@@ -48,7 +50,12 @@ struct WaveformView: View {
             if progress > 0 {
                 let progressX = size.width * CGFloat(min(1, max(0, progress)))
                 let rect = CGRect(x: 0, y: 0, width: progressX, height: size.height)
-                context.fill(Path(rect), with: .color(.accentColor.opacity(0.18)))
+                context.fill(Path(rect), with: .color(tint.opacity(0.12)))
+            }
+            if showsPlayhead {
+                let x = size.width * CGFloat(min(1, max(0, progress)))
+                let line = Path { p in p.move(to: CGPoint(x: x, y: 0)); p.addLine(to: CGPoint(x: x, y: size.height)) }
+                context.stroke(line, with: .color(tint), lineWidth: 1)
             }
         }
     }
