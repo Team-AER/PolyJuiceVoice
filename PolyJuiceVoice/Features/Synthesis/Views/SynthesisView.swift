@@ -18,6 +18,7 @@ struct SynthesisView: View {
     @EnvironmentObject var selectionStore: ModelSelectionStore
 
     @State private var showingModelManager = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         NavigationStack {
@@ -182,12 +183,49 @@ struct SynthesisView: View {
     private var playbackCard: some View {
         GlassCard {
             VStack(alignment: .leading, spacing: 12) {
-                WaveformView(
-                    samples: viewModel.waveformSamples,
-                    progress: viewModel.playbackProgress
-                )
+                HStack {
+                    Text("Preview").font(.subheadline.weight(.semibold))
+                    Spacer()
+                    if viewModel.hasAudio {
+                        Label(UILayoutAudit.showsSyntheticPreview ? "Synthetic preview" : "Audio ready", systemImage: "checkmark.circle")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                ZStack {
+                    if viewModel.hasAudio {
+                        WaveformView(
+                            samples: viewModel.waveformSamples,
+                            progress: viewModel.playbackProgress
+                        )
+                        .accessibilityLabel("Waveform of synthesized audio")
+                        .transition(.opacity)
+                    } else {
+                        VStack(spacing: 6) {
+                            Text(viewModel.isSynthesizing ? "Creating your audio…" : "Listen to your generated voice")
+                                .font(.subheadline.weight(.medium))
+                            Text(viewModel.isSynthesizing ? "Your preview will appear here when it is ready." : "Choose a voice, add your text, then select Speak.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .transition(.opacity)
+                    }
+                }
                 .frame(height: 64)
-                .accessibilityLabel("Waveform of synthesized audio")
+                .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: viewModel.hasAudio)
+
+                #if DEBUG
+                if UILayoutAudit.showsSyntheticPreview {
+                    Button(viewModel.hasAudio ? "Reset synthetic preview" : "Show synthetic preview") {
+                        viewModel.toggleSyntheticPreview()
+                    }
+                    .font(.caption)
+                    Text("Visual fixture only · no audio generated")
+                        .font(.caption2).foregroundStyle(.secondary)
+                }
+                #endif
 
                 AdaptiveControlRow {
                     HStack(spacing: 18) {

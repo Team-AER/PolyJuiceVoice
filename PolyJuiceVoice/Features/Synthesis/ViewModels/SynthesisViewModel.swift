@@ -76,6 +76,15 @@ final class SynthesisViewModel: ObservableObject {
     private var audioDuration: TimeInterval = 0
     private var cancellables = Set<AnyCancellable>()
 
+    #if DEBUG
+    /// Visual state only: no audio engine, file, inference or playback is used.
+    func toggleSyntheticPreview() {
+        guard UILayoutAudit.showsSyntheticPreview else { return }
+        waveformSamples = (0..<80).map { Float(sin(Double($0) * 0.4) * 0.6) }
+        hasAudio.toggle()
+    }
+    #endif
+
     var canSynthesize: Bool {
         unconfiguredCapability == nil &&
         !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
