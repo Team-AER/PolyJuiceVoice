@@ -15,6 +15,7 @@ struct PolyJuiceVoiceApp: App {
     @StateObject private var selectionStore = ModelSelectionStore()
 
     init() {
+        ErrorMonitoring.start()
         // Pin the MLX default device to .gpu and set sensible Metal memory
         // limits before any DIContainer / MLXTTSService init touches MLX.
         if !UILayoutAudit.isEnabled {
