@@ -9,7 +9,7 @@
 
 ## Summary
 
-PolyJuiceVoice processes everything **on your device**. We do not collect, transmit, or sell any personal data. Synthesis runs locally. Network activity includes configured crash/error diagnostics, model downloads from Hugging Face and optional iCloud sync between your own devices, which is off by default and described below. Exporting or sharing generated audio sends it to the destination you choose.
+PolyJuiceVoice processes everything **on your device**. Your text and audio are not attached to diagnostic reports. Synthesis runs locally. Network activity includes configured crash/error diagnostics, model downloads from Hugging Face and optional iCloud sync between your own devices, which is off by default and described below. Exporting or sharing generated audio sends it to the destination you choose.
 
 ---
 
@@ -80,7 +80,7 @@ You can delete all app data by uninstalling the app. If iCloud Sync was enabled,
 
 ## Children's Privacy
 
-PolyJuiceVoice does not knowingly collect any information from children under 13. The app requires no account and transmits no personal data.
+PolyJuiceVoice does not knowingly collect any information from children under 13. The app requires no account; diagnostics follow the limits described below.
 
 ---
 
