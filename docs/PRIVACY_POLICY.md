@@ -9,7 +9,7 @@
 
 ## Summary
 
-PolyJuiceVoice processes everything **on your device**. We do not collect, transmit, or sell any personal data. Synthesis runs locally. Network activity includes model downloads from Hugging Face and optional iCloud sync between your own devices, which is off by default and described below. Exporting or sharing generated audio sends it to the destination you choose.
+PolyJuiceVoice processes everything **on your device**. We do not collect, transmit, or sell any personal data. Synthesis runs locally. Network activity includes configured crash/error diagnostics, model downloads from Hugging Face and optional iCloud sync between your own devices, which is off by default and described below. Exporting or sharing generated audio sends it to the destination you choose.
 
 ---
 
@@ -51,7 +51,7 @@ Model Manager downloads the model snapshots you select from Hugging Face (`huggi
 
 - No account or registration is required
 - No analytics or usage data is collected
-- No crash reports are transmitted
+- Monitored builds send limited crash and error diagnostics as described below
 - No advertising identifiers are used
 - No data is sold or shared with third parties
 
@@ -93,3 +93,7 @@ If we update this policy, we will revise the Effective Date above. Continued use
 ## Contact
 
 Questions about this privacy policy? Email us at **prafiles@gmail.com**.
+
+## Crash and error diagnostics
+
+Official monitored builds use the Sentry Cocoa SDK with our GlitchTip service at `https://glitchtip.brainfc.uk/` to investigate application faults. Reports contain exception types, diagnostic code stacks, app version and SDK metadata. Request context, users, breadcrumbs, extras, exception messages and NSError user-info and mechanism text are removed before sending; stored event IP addresses are scrubbed. Prompts, transcripts, voice recordings and generated audio are not attached. No advertising or persistent user identifiers are configured. Network infrastructure receives connection metadata and its access logs may retain it. Reports follow the service's configured retention policy. Source builds with no DSN configured do not report.
